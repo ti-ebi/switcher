@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,36 +12,40 @@ import (
 
 func main() {
 	ctx := context.Background()
-
 	provider := tmux.NewProvider()
-	sessionNames, err := provider.List(ctx)
-	if err != nil {
-		log.Fatalf("failed to load sessions: %v", err)
+
+	for {
+		sessionNames, err := provider.List(ctx)
+		if err != nil {
+			log.Fatalf("failed to load sessions: %v", err)
+		}
+
+		model := tui.NewModel(toTUISessions(sessionNames))
+		program := tea.NewProgram(model, tea.WithAltScreen())
+
+		finalModelAny, err := program.Run()
+		if err != nil {
+			log.Fatalf("switcher failed: %v", err)
+		}
+
+		finalModel, ok := finalModelAny.(tui.Model)
+		if !ok {
+			return
+		}
+
+		if finalModel.IsQuitting() {
+			return
+		}
+
+		session, selected := finalModel.SelectedSession()
+		if !selected {
+			continue
+		}
+
+		if err := tmux.AttachSession(ctx, session.Name); err != nil {
+			log.Printf("failed to attach session: %v", err)
+		}
 	}
-
-	model := tui.NewModel(toTUISessions(sessionNames))
-	program := tea.NewProgram(model, tea.WithAltScreen())
-
-	finalModelAny, err := program.Run()
-	if err != nil {
-		log.Fatalf("switcher failed: %v", err)
-	}
-
-	finalModel, ok := finalModelAny.(tui.Model)
-	if !ok {
-		return
-	}
-
-	session, selected := finalModel.SelectedSession()
-	if !selected {
-		return
-	}
-
-	if err := tmux.AttachSession(ctx, session.Name); err != nil {
-		log.Fatalf("failed to attach session: %v", err)
-	}
-
-	fmt.Printf("Attached session: %s\n", session.Name)
 }
 
 func toTUISessions(names []string) []tui.Session {

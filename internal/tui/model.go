@@ -128,6 +128,11 @@ func (m Model) SelectedSession() (Session, bool) {
 	return m.selectedSession, m.selected
 }
 
+// IsQuitting returns whether the user requested quit from the switcher UI.
+func (m Model) IsQuitting() bool {
+	return m.quitting
+}
+
 // Width returns the latest known terminal width.
 func (m Model) Width() int {
 	return m.width

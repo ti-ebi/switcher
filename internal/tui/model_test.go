@@ -59,6 +59,22 @@ func TestUpdateMovesCursorUpWithK(t *testing.T) {
 	}
 }
 
+func TestUpdateMarksQuittingWithQ(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}, {Name: "beta"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	nextModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	if !nextModel.IsQuitting() {
+		t.Fatal("quitting = false, want true")
+	}
+}
+
 func TestUpdateSelectsCurrentSessionWithEnter(t *testing.T) {
 	t.Parallel()
 
