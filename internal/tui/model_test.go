@@ -7,6 +7,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func TestNewModel(t *testing.T) {
@@ -416,6 +418,27 @@ func TestViewShowsDeleteSessionPromptInDeleteMode(t *testing.T) {
 
 	if !strings.Contains(output, "Session: alpha") {
 		t.Fatalf("output must contain %q\noutput:\n%s", "Session: alpha", output)
+	}
+}
+
+func TestViewRendersAnsiStylesWhenColorEnabled(t *testing.T) {
+	originalProfile := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() {
+		lipgloss.SetColorProfile(originalProfile)
+	})
+
+	model := NewModel([]Session{{Name: "alpha"}, {Name: "beta"}}).EnableColor()
+
+	resized, _ := model.Update(tea.WindowSizeMsg{Width: 70, Height: 8})
+	sizedModel, ok := resized.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", resized)
+	}
+
+	output := sizedModel.View()
+	if !strings.Contains(output, "\x1b[") {
+		t.Fatalf("output must contain ANSI escape sequence when color is enabled\noutput:\n%q", output)
 	}
 }
 

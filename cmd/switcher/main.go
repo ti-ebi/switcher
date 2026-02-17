@@ -39,7 +39,7 @@ func runSwitcherProgram(ctx context.Context, provider tmux.Provider) (tui.Model,
 		log.Fatalf("failed to load sessions: %v", err)
 	}
 
-	model := tui.NewModel(toTUISessions(sessionNames))
+	model := tui.NewModel(toTUISessions(sessionNames)).EnableColor()
 	program := tea.NewProgram(model, tea.WithAltScreen())
 	detailsCtx, cancelDetails := context.WithCancel(ctx)
 	go streamSessionDetails(detailsCtx, provider, program)

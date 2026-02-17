@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Session represents one external terminal session (for example, a tmux session).
@@ -46,6 +47,7 @@ type Model struct {
 	confirmingDelete bool
 	deleteTarget     string
 	deleteRequested  bool
+	colorEnabled     bool
 	cursor           int
 	width            int
 	height           int
@@ -248,11 +250,20 @@ func (m Model) updateCreateMode(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 // View renders the list of sessions in a left-sidebar style block.
 func (m Model) View() string {
 	if m.selected {
-		return fmt.Sprintf("Connecting to session: %s\n", m.selectedSession.Name)
+		message := fmt.Sprintf("Connecting to session: %s\n", m.selectedSession.Name)
+		if !m.colorEnabled {
+			return message
+		}
+
+		return themeStatusStyle().Render(strings.TrimSuffix(message, "\n")) + "\n"
 	}
 
 	if m.quitting {
-		return "Quitting switcher...\n"
+		if !m.colorEnabled {
+			return "Quitting switcher...\n"
+		}
+
+		return themeMutedStyle().Render("Quitting switcher...") + "\n"
 	}
 
 	if m.width > 0 && m.height > 0 {
@@ -335,6 +346,12 @@ func (m Model) DeleteRequest() (string, bool) {
 	return m.deleteTarget, m.deleteRequested
 }
 
+// EnableColor turns on colored rendering for the TUI output.
+func (m Model) EnableColor() Model {
+	m.colorEnabled = true
+	return m
+}
+
 // Width returns the latest known terminal width.
 func (m Model) Width() int {
 	return m.width
@@ -374,9 +391,18 @@ func (m Model) viewWithSidebar() string {
 
 	var builder strings.Builder
 	for index := 0; index < m.height; index++ {
-		builder.WriteString(fitLine(leftLines[index], sidebarWidth))
-		builder.WriteString(" | ")
-		builder.WriteString(fitLine(rightLines[index], rightWidth))
+		leftLine := fitLine(leftLines[index], sidebarWidth)
+		rightLine := fitLine(rightLines[index], rightWidth)
+		if m.colorEnabled {
+			builder.WriteString(colorizeSidebarLine(leftLine))
+			builder.WriteString(themeSeparatorStyle().Render(" | "))
+			builder.WriteString(colorizeDetailsLine(rightLine))
+		} else {
+			builder.WriteString(leftLine)
+			builder.WriteString(" | ")
+			builder.WriteString(rightLine)
+		}
+
 		builder.WriteByte('\n')
 	}
 
@@ -584,4 +610,94 @@ func deleteSessionLines(sessionName string) []string {
 	}
 
 	return lines
+}
+
+func colorizeSidebarLine(line string) string {
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case strings.HasPrefix(line, "> "):
+		return themeSelectedStyle().Render(line)
+	case trimmed == "Sessions":
+		return themeHeaderStyle().Render(line)
+	case strings.Contains(trimmed, "[j/k] move"):
+		return themeMutedStyle().Render(line)
+	default:
+		return themeSidebarTextStyle().Render(line)
+	}
+}
+
+func colorizeDetailsLine(line string) string {
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case trimmed == "Details":
+		return themeHeaderStyle().Render(line)
+	case trimmed == "Create Session":
+		return themeHeaderStyle().Render(line)
+	case trimmed == "Rename Session":
+		return themeHeaderStyle().Render(line)
+	case trimmed == "Delete Session":
+		return themeHeaderStyle().Render(line)
+	case strings.HasPrefix(trimmed, "Refresh error:"):
+		return themeErrorStyle().Render(line)
+	case strings.HasPrefix(trimmed, "Updated:"):
+		return themeMutedStyle().Render(line)
+	case strings.HasPrefix(trimmed, "Preview:"):
+		return themeAccentStyle().Render(line)
+	case strings.HasPrefix(trimmed, "[enter]"):
+		return themeMutedStyle().Render(line)
+	case strings.HasPrefix(trimmed, "[y]"):
+		return themeMutedStyle().Render(line)
+	default:
+		return themeDetailsTextStyle().Render(line)
+	}
+}
+
+func themeHeaderStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#7FD7FF"})
+}
+
+func themeSelectedStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"}).
+		Background(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5F5FFF"})
+}
+
+func themeStatusStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.AdaptiveColor{Light: "#005F5F", Dark: "#87FFAF"})
+}
+
+func themeAccentStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#AF5F00", Dark: "#FFD787"})
+}
+
+func themeSidebarTextStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#303030", Dark: "#D9D9D9"})
+}
+
+func themeDetailsTextStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#303030", Dark: "#C6C6C6"})
+}
+
+func themeSeparatorStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#808080", Dark: "#626262"})
+}
+
+func themeMutedStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#666666", Dark: "#8A8A8A"})
+}
+
+func themeErrorStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.AdaptiveColor{Light: "#AF0000", Dark: "#FF5F5F"})
 }
