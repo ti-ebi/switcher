@@ -40,6 +40,23 @@ Sessions                         | Details
 
 ## Installation
 
+### Install with curl (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ti-ebi/switcher/main/install.sh | sh
+```
+
+Install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ti-ebi/switcher/main/install.sh | sh -s -- v0.1.0
+```
+
+Environment overrides:
+
+- `SWITCHER_INSTALL_DIR` (default: `~/.local/bin`)
+- `SWITCHER_REPO` (default: `ti-ebi/switcher`)
+
 ### Install from source
 
 ```bash
@@ -107,6 +124,11 @@ make build      # compile
 make check      # fmt-check + lint + test + build
 ```
 
+### Release
+
+Push a semver tag (for example `v0.1.0`) to trigger `.github/workflows/release.yml`.
+The workflow builds macOS/Linux archives for `amd64` and `arm64`, then publishes them with `checksums.txt` to GitHub Releases.
+
 ## Architecture (Current)
 
 - `cmd/switcher`: app entrypoint and runtime loop
@@ -118,4 +140,3 @@ make check      # fmt-check + lint + test + build
 - Configurable theme profiles
 - Fuzzy session search/filter
 - Multi-provider session backend (zellij/screen)
-

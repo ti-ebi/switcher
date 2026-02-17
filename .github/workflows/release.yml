@@ -1,0 +1,54 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build release archives
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -eu
+          mkdir -p dist
+          for goos in darwin linux; do
+            for goarch in amd64 arm64; do
+              archive_name="switcher_${VERSION}_${goos}_${goarch}.tar.gz"
+              tmp_dir="$(mktemp -d)"
+              GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -o "$tmp_dir/switcher" ./cmd/switcher
+              tar -C "$tmp_dir" -czf "dist/$archive_name" switcher
+              rm -rf "$tmp_dir"
+            done
+          done
+
+      - name: Generate checksums
+        run: |
+          set -eu
+          cd dist
+          sha256sum switcher_*.tar.gz > checksums.txt
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/switcher_*.tar.gz
+            dist/checksums.txt
