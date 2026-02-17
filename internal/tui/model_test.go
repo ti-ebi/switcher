@@ -110,7 +110,7 @@ func TestViewRendersSidebarWithSelection(t *testing.T) {
 	model := NewModel([]Session{{Name: "alpha"}, {Name: "beta"}})
 
 	output := model.View()
-	want := "Sessions\n\n> alpha\n  beta\n\n[j/k] move  [n] new  [enter] connect  [q] quit\n"
+	want := "Sessions\n\n> alpha\n  beta\n\n[j/k] move  [n] new  [r] rename  [d] delete  [enter] connect  [q] quit\n"
 
 	if output != want {
 		t.Fatalf("view mismatch\nwant:\n%s\n\ngot:\n%s", want, output)
@@ -217,6 +217,127 @@ func TestUpdateCancelsCreateModeWithEsc(t *testing.T) {
 	}
 }
 
+func TestUpdateStartsRenameModeWithR(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	nextModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	if !nextModel.IsRenamingSession() {
+		t.Fatal("renaming session = false, want true")
+	}
+}
+
+func TestUpdateBuildsAndSubmitsRenameSessionName(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	renameModeModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	for _, key := range []rune{'b', 'e', 't', 'a'} {
+		updated, _ = renameModeModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+		renameModeModel, ok = updated.(Model)
+		if !ok {
+			t.Fatalf("update returned %T, want Model", updated)
+		}
+	}
+
+	updated, _ = renameModeModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	finalModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	from, to, requested := finalModel.RenameRequest()
+	if !requested {
+		t.Fatal("requested = false, want true")
+	}
+
+	if from != "alpha" || to != "beta" {
+		t.Fatalf("rename request = (%q -> %q), want (%q -> %q)", from, to, "alpha", "beta")
+	}
+}
+
+func TestUpdateStartsDeleteConfirmationWithD(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	nextModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	if !nextModel.IsConfirmingDelete() {
+		t.Fatal("confirming delete = false, want true")
+	}
+}
+
+func TestUpdateConfirmsDeleteWithY(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	deleteModeModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = deleteModeModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	finalModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	sessionName, requested := finalModel.DeleteRequest()
+	if !requested {
+		t.Fatal("requested = false, want true")
+	}
+
+	if sessionName != "alpha" {
+		t.Fatalf("sessionName = %q, want %q", sessionName, "alpha")
+	}
+}
+
+func TestUpdateCancelsDeleteWithEsc(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	deleteModeModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = deleteModeModel.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	finalModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	if finalModel.IsConfirmingDelete() {
+		t.Fatal("confirming delete = true, want false")
+	}
+
+	_, requested := finalModel.DeleteRequest()
+	if requested {
+		t.Fatal("requested = true, want false")
+	}
+}
+
 func TestViewShowsCreateSessionPromptInCreateMode(t *testing.T) {
 	t.Parallel()
 
@@ -241,6 +362,60 @@ func TestViewShowsCreateSessionPromptInCreateMode(t *testing.T) {
 
 	if !strings.Contains(output, "Name: _") {
 		t.Fatalf("output must contain %q\noutput:\n%s", "Name: _", output)
+	}
+}
+
+func TestViewShowsRenameSessionPromptInRenameMode(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	renameModeModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = renameModeModel.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	sizedModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	output := sizedModel.View()
+	if !strings.Contains(output, "Rename Session") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "Rename Session", output)
+	}
+
+	if !strings.Contains(output, "From: alpha") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "From: alpha", output)
+	}
+}
+
+func TestViewShowsDeleteSessionPromptInDeleteMode(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	deleteModeModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = deleteModeModel.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	sizedModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	output := sizedModel.View()
+	if !strings.Contains(output, "Delete Session") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "Delete Session", output)
+	}
+
+	if !strings.Contains(output, "Session: alpha") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "Session: alpha", output)
 	}
 }
 

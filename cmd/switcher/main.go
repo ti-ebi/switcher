@@ -18,48 +18,86 @@ func main() {
 	provider := tmux.NewProvider()
 
 	for {
-		sessionNames, err := provider.List(ctx)
-		if err != nil {
-			log.Fatalf("failed to load sessions: %v", err)
-		}
-
-		model := tui.NewModel(toTUISessions(sessionNames))
-		program := tea.NewProgram(model, tea.WithAltScreen())
-		detailsCtx, cancelDetails := context.WithCancel(ctx)
-		go streamSessionDetails(detailsCtx, provider, program)
-
-		finalModelAny, err := program.Run()
-		cancelDetails()
-		if err != nil {
-			log.Fatalf("switcher failed: %v", err)
-		}
-
-		finalModel, ok := finalModelAny.(tui.Model)
-		if !ok {
+		finalModel, ok := runSwitcherProgram(ctx, provider)
+		if !ok || finalModel.IsQuitting() {
 			return
 		}
 
-		if finalModel.IsQuitting() {
-			return
-		}
-
-		if sessionName, requested := finalModel.CreateRequest(); requested {
-			if err := provider.Create(ctx, sessionName); err != nil {
-				log.Printf("failed to create session %q: %v", sessionName, err)
-			}
-
+		if processManagementRequests(ctx, provider, finalModel) {
 			continue
 		}
 
-		session, selected := finalModel.SelectedSession()
-		if !selected {
+		if !attachSelectedSession(ctx, finalModel) {
 			continue
-		}
-
-		if err := tmux.AttachSession(ctx, session.Name); err != nil {
-			log.Printf("failed to attach session: %v", err)
 		}
 	}
+}
+
+func runSwitcherProgram(ctx context.Context, provider tmux.Provider) (tui.Model, bool) {
+	sessionNames, err := provider.List(ctx)
+	if err != nil {
+		log.Fatalf("failed to load sessions: %v", err)
+	}
+
+	model := tui.NewModel(toTUISessions(sessionNames))
+	program := tea.NewProgram(model, tea.WithAltScreen())
+	detailsCtx, cancelDetails := context.WithCancel(ctx)
+	go streamSessionDetails(detailsCtx, provider, program)
+
+	finalModelAny, err := program.Run()
+	cancelDetails()
+	if err != nil {
+		log.Fatalf("switcher failed: %v", err)
+	}
+
+	finalModel, ok := finalModelAny.(tui.Model)
+	return finalModel, ok
+}
+
+func processManagementRequests(ctx context.Context, provider tmux.Provider, model tui.Model) bool {
+	if sessionName, requested := model.CreateRequest(); requested {
+		if err := provider.Create(ctx, sessionName); err != nil {
+			log.Printf("failed to create session %q: %v", sessionName, err)
+		}
+
+		return true
+	}
+
+	if fromSessionName, toSessionName, requested := model.RenameRequest(); requested {
+		if err := provider.Rename(ctx, fromSessionName, toSessionName); err != nil {
+			log.Printf(
+				"failed to rename session %q to %q: %v",
+				fromSessionName,
+				toSessionName,
+				err,
+			)
+		}
+
+		return true
+	}
+
+	if sessionName, requested := model.DeleteRequest(); requested {
+		if err := provider.Delete(ctx, sessionName); err != nil {
+			log.Printf("failed to delete session %q: %v", sessionName, err)
+		}
+
+		return true
+	}
+
+	return false
+}
+
+func attachSelectedSession(ctx context.Context, model tui.Model) bool {
+	session, selected := model.SelectedSession()
+	if !selected {
+		return false
+	}
+
+	if err := tmux.AttachSession(ctx, session.Name); err != nil {
+		log.Printf("failed to attach session: %v", err)
+	}
+
+	return true
 }
 
 func streamSessionDetails(ctx context.Context, provider tmux.Provider, program *tea.Program) {

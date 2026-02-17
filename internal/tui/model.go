@@ -30,20 +30,28 @@ type SessionDetailsUpdatedMsg struct {
 
 // Model is the Bubble Tea state for the switcher sidebar.
 type Model struct {
-	sessions        []Session
-	sessionDetails  map[string]SessionDetails
-	detailsUpdated  time.Time
-	detailsError    string
-	creatingSession bool
-	createInput     string
-	createRequested bool
-	createName      string
-	cursor          int
-	width           int
-	height          int
-	selected        bool
-	selectedSession Session
-	quitting        bool
+	sessions         []Session
+	sessionDetails   map[string]SessionDetails
+	detailsUpdated   time.Time
+	detailsError     string
+	creatingSession  bool
+	createInput      string
+	createRequested  bool
+	createName       string
+	renamingSession  bool
+	renameInput      string
+	renameFrom       string
+	renameRequested  bool
+	renameTo         string
+	confirmingDelete bool
+	deleteTarget     string
+	deleteRequested  bool
+	cursor           int
+	width            int
+	height           int
+	selected         bool
+	selectedSession  Session
+	quitting         bool
 }
 
 // NewModel builds a model with a stable copy of sessions.
@@ -90,6 +98,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.confirmingDelete {
+		return m.updateDeleteMode(keyMsg)
+	}
+
+	if m.renamingSession {
+		return m.updateRenameMode(keyMsg)
+	}
+
 	if m.creatingSession {
 		return m.updateCreateMode(keyMsg)
 	}
@@ -115,11 +131,82 @@ func (m Model) updateBrowseMode(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 		m.selected = true
 		m.selectedSession = m.sessions[m.cursor]
 		return m, tea.Quit
+	case "q", "ctrl+c":
+		m.quitting = true
+		return m, tea.Quit
+	}
+
+	return m.updateBrowseShortcut(keyMsg)
+}
+
+func (m Model) updateBrowseShortcut(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+	if len(m.sessions) == 0 {
+		if keyMsg.String() == "n" {
+			m.creatingSession = true
+			m.createInput = ""
+		}
+
+		return m, nil
+	}
+
+	switch keyMsg.String() {
 	case "n":
 		m.creatingSession = true
 		m.createInput = ""
+	case "r":
+		m.renamingSession = true
+		m.renameInput = ""
+		m.renameFrom = m.sessions[m.cursor].Name
+	case "d":
+		m.confirmingDelete = true
+		m.deleteTarget = m.sessions[m.cursor].Name
+	}
+
+	return m, nil
+}
+
+func (m Model) updateRenameMode(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+	switch keyMsg.String() {
+	case "esc":
+		m.renamingSession = false
+		m.renameInput = ""
 		return m, nil
-	case "q", "ctrl+c":
+	case "enter":
+		name := strings.TrimSpace(m.renameInput)
+		if name == "" || name == m.renameFrom {
+			return m, nil
+		}
+
+		m.renamingSession = false
+		m.renameRequested = true
+		m.renameTo = name
+		return m, tea.Quit
+	case "backspace", "ctrl+h":
+		m.renameInput = removeLastRune(m.renameInput)
+		return m, nil
+	case "ctrl+c":
+		m.quitting = true
+		return m, tea.Quit
+	}
+
+	if keyMsg.Type == tea.KeyRunes && len(keyMsg.Runes) > 0 {
+		m.renameInput += string(keyMsg.Runes)
+	}
+
+	return m, nil
+}
+
+func (m Model) updateDeleteMode(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+	switch keyMsg.String() {
+	case "y", "enter":
+		m.confirmingDelete = false
+		m.deleteRequested = true
+		return m, tea.Quit
+	case "n", "esc":
+		m.confirmingDelete = false
+		m.deleteTarget = ""
+		return m, nil
+	case "ctrl+c":
 		m.quitting = true
 		return m, tea.Quit
 	}
@@ -194,7 +281,7 @@ func (m Model) viewWithoutSidebar() string {
 		builder.WriteString("\n")
 	}
 
-	builder.WriteString("\n[j/k] move  [n] new  [enter] connect  [q] quit\n")
+	builder.WriteString("\n[j/k] move  [n] new  [r] rename  [d] delete  [enter] connect  [q] quit\n")
 	return builder.String()
 }
 
@@ -223,9 +310,29 @@ func (m Model) IsCreatingSession() bool {
 	return m.creatingSession
 }
 
+// IsRenamingSession returns whether the UI is in rename-session mode.
+func (m Model) IsRenamingSession() bool {
+	return m.renamingSession
+}
+
+// IsConfirmingDelete returns whether the UI is in delete confirmation mode.
+func (m Model) IsConfirmingDelete() bool {
+	return m.confirmingDelete
+}
+
 // CreateRequest returns the requested session name and whether creation was requested.
 func (m Model) CreateRequest() (string, bool) {
 	return m.createName, m.createRequested
+}
+
+// RenameRequest returns rename source/target and whether rename was requested.
+func (m Model) RenameRequest() (string, string, bool) {
+	return m.renameFrom, m.renameTo, m.renameRequested
+}
+
+// DeleteRequest returns the target session and whether delete was requested.
+func (m Model) DeleteRequest() (string, bool) {
+	return m.deleteTarget, m.deleteRequested
 }
 
 // Width returns the latest known terminal width.
@@ -288,10 +395,18 @@ func (m Model) sidebarLines(lineCount int) []string {
 		lines = append(lines, prefix+session.Name)
 	}
 
-	return withFooter(lines, lineCount, "[j/k] move [n] new [enter] connect [q] quit")
+	return withFooter(lines, lineCount, "[j/k] move [n] new [r] rename [d] delete [enter] connect [q] quit")
 }
 
 func (m Model) detailsLines(lineCount int) []string {
+	if m.confirmingDelete {
+		return withFooter(deleteSessionLines(m.deleteTarget), lineCount, "")
+	}
+
+	if m.renamingSession {
+		return withFooter(renameSessionLines(m.renameFrom, m.renameInput), lineCount, "")
+	}
+
 	if m.creatingSession {
 		return withFooter(createSessionLines(m.createInput), lineCount, "")
 	}
@@ -441,6 +556,31 @@ func createSessionLines(input string) []string {
 		"Name: " + input + "_",
 		"",
 		"[enter] create  [esc] cancel",
+	}
+
+	return lines
+}
+
+func renameSessionLines(from, input string) []string {
+	lines := []string{
+		"Rename Session",
+		"",
+		"From: " + from,
+		"To: " + input + "_",
+		"",
+		"[enter] rename  [esc] cancel",
+	}
+
+	return lines
+}
+
+func deleteSessionLines(sessionName string) []string {
+	lines := []string{
+		"Delete Session",
+		"",
+		"Session: " + sessionName,
+		"",
+		"[y] confirm delete  [n/esc] cancel",
 	}
 
 	return lines

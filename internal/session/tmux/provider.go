@@ -81,6 +81,51 @@ func (p Provider) Create(ctx context.Context, sessionName string) error {
 	return nil
 }
 
+// Rename renames a tmux session.
+func (p Provider) Rename(ctx context.Context, fromSessionName, toSessionName string) error {
+	from := strings.TrimSpace(fromSessionName)
+	if from == "" {
+		return fmt.Errorf("rename tmux session: source session name is empty")
+	}
+
+	to := strings.TrimSpace(toSessionName)
+	if to == "" {
+		return fmt.Errorf("rename tmux session: target session name is empty")
+	}
+
+	output, err := p.runner(ctx, "tmux", "rename-session", "-t", from, to)
+	if err != nil {
+		outputText := strings.TrimSpace(string(output))
+		if outputText != "" {
+			return fmt.Errorf("rename tmux session: %w: %s", err, outputText)
+		}
+
+		return fmt.Errorf("rename tmux session: %w", err)
+	}
+
+	return nil
+}
+
+// Delete deletes one tmux session by name.
+func (p Provider) Delete(ctx context.Context, sessionName string) error {
+	name := strings.TrimSpace(sessionName)
+	if name == "" {
+		return fmt.Errorf("delete tmux session: session name is empty")
+	}
+
+	output, err := p.runner(ctx, "tmux", "kill-session", "-t", name)
+	if err != nil {
+		outputText := strings.TrimSpace(string(output))
+		if outputText != "" {
+			return fmt.Errorf("delete tmux session: %w: %s", err, outputText)
+		}
+
+		return fmt.Errorf("delete tmux session: %w", err)
+	}
+
+	return nil
+}
+
 // ListDetails returns metadata for all tmux sessions.
 func (p Provider) ListDetails(ctx context.Context) ([]SessionDetails, error) {
 	output, err := p.runner(
