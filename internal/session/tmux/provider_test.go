@@ -3,6 +3,7 @@ package tmux
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -180,5 +181,44 @@ func TestProviderListDetailsUsesCapturePaneTailArguments(t *testing.T) {
 		if captureArgs[index] != wantArgs[index] {
 			t.Fatalf("captureArgs[%d] = %q, want %q", index, captureArgs[index], wantArgs[index])
 		}
+	}
+}
+
+func TestEnsureInstalledReturnsNilWhenTmuxExists(t *testing.T) {
+	originalLookPath := lookPath
+	t.Cleanup(func() {
+		lookPath = originalLookPath
+	})
+
+	lookPath = func(file string) (string, error) {
+		if file != "tmux" {
+			t.Fatalf("lookPath called with %q, want %q", file, "tmux")
+		}
+
+		return "/usr/bin/tmux", nil
+	}
+
+	if err := EnsureInstalled(); err != nil {
+		t.Fatalf("EnsureInstalled returned error: %v", err)
+	}
+}
+
+func TestEnsureInstalledReturnsFriendlyErrorWhenTmuxMissing(t *testing.T) {
+	originalLookPath := lookPath
+	t.Cleanup(func() {
+		lookPath = originalLookPath
+	})
+
+	lookPath = func(_ string) (string, error) {
+		return "", exec.ErrNotFound
+	}
+
+	err := EnsureInstalled()
+	if err == nil {
+		t.Fatal("EnsureInstalled returned nil error, want non-nil")
+	}
+
+	if !strings.Contains(err.Error(), "tmux is not installed") {
+		t.Fatalf("error = %q, want to contain %q", err.Error(), "tmux is not installed")
 	}
 }

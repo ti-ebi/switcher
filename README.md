@@ -38,6 +38,8 @@ Sessions                         | Details
 - `tmux` installed and available in `PATH`
 - A terminal with ANSI color support (recommended)
 
+If `tmux` is missing, `switcher` exits with installation hints for common platforms.
+
 ## Installation
 
 ### Install with curl (recommended)
@@ -96,6 +98,11 @@ switcher
 - Create: `n` -> type name -> `enter`
 - Rename: `r` -> type new name -> `enter`
 - Delete: `d` -> `y` to confirm (or `n` / `esc` to cancel)
+
+### Inside tmux after attach
+
+`switcher` focuses on session selection and attach.  
+After attach, pane/window split and other terminal workflow operations are done with normal tmux key bindings (default prefix: `Ctrl+b`).
 
 ### Return flow after attach
 

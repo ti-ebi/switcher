@@ -15,6 +15,20 @@ const detailsRefreshInterval = time.Second
 
 func main() {
 	ctx := context.Background()
+
+	if err := tmux.EnsureInstalled(); err != nil {
+		log.Fatalf(
+			"tmux is required to run switcher.\n"+
+				"Install tmux and retry.\n"+
+				"- macOS (Homebrew): brew install tmux\n"+
+				"- Ubuntu/Debian: sudo apt install tmux\n"+
+				"- Fedora: sudo dnf install tmux\n"+
+				"- Arch Linux: sudo pacman -S tmux\n"+
+				"Details: %v",
+			err,
+		)
+	}
+
 	provider := tmux.NewProvider()
 
 	for {

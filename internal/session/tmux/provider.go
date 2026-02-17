@@ -3,6 +3,7 @@ package tmux
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,8 @@ import (
 )
 
 type commandRunner func(ctx context.Context, command string, args ...string) ([]byte, error)
+
+var lookPath = exec.LookPath
 
 // Provider lists tmux session names.
 type Provider struct {
@@ -40,6 +43,20 @@ func NewProviderWithRunner(runner commandRunner) Provider {
 	}
 
 	return Provider{runner: runner}
+}
+
+// EnsureInstalled validates that tmux is available on PATH.
+func EnsureInstalled() error {
+	_, err := lookPath("tmux")
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, exec.ErrNotFound) {
+		return fmt.Errorf("tmux is not installed or not available in PATH")
+	}
+
+	return fmt.Errorf("check tmux availability: %w", err)
 }
 
 // List returns available tmux session names.
