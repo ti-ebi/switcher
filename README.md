@@ -43,13 +43,13 @@ Sessions                         | Details
 ### Install with curl (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ti-ebi/switcher/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ti-ebi/switcher/HEAD/install.sh | sh
 ```
 
 Install a specific version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ti-ebi/switcher/main/install.sh | sh -s -- v0.1.0
+curl -fsSL https://raw.githubusercontent.com/ti-ebi/switcher/HEAD/install.sh | sh -s -- v0.1.0
 ```
 
 Environment overrides:

@@ -64,7 +64,13 @@ resolve_version() {
   fi
 
   api_url="https://api.github.com/repos/$REPO/releases/latest"
-  version="$(curl -fsSL "$api_url" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+  if ! response="$(curl -fsSL "$api_url" 2>/dev/null)"; then
+    echo "error: could not resolve latest release from $api_url" >&2
+    echo "hint: no GitHub Release may exist yet. Create and publish a tag like v0.1.0 first." >&2
+    exit 1
+  fi
+
+  version="$(printf "%s" "$response" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
   if [ -z "$version" ]; then
     echo "error: could not resolve latest release version from $api_url" >&2
     exit 1
