@@ -34,6 +34,10 @@ type Model struct {
 	sessionDetails  map[string]SessionDetails
 	detailsUpdated  time.Time
 	detailsError    string
+	creatingSession bool
+	createInput     string
+	createRequested bool
+	createName      string
 	cursor          int
 	width           int
 	height          int
@@ -81,6 +85,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	nextModel, cmd := m.updateKeyMsg(keyMsg)
+	return nextModel, cmd
+}
+
+func (m Model) updateKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.creatingSession {
+		return m.updateCreateMode(keyMsg)
+	}
+
+	return m.updateBrowseMode(keyMsg)
+}
+
+func (m Model) updateBrowseMode(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 	switch keyMsg.String() {
 	case "j", "down":
 		if m.cursor < len(m.sessions)-1 {
@@ -98,9 +115,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selected = true
 		m.selectedSession = m.sessions[m.cursor]
 		return m, tea.Quit
+	case "n":
+		m.creatingSession = true
+		m.createInput = ""
+		return m, nil
 	case "q", "ctrl+c":
 		m.quitting = true
 		return m, tea.Quit
+	}
+
+	return m, nil
+}
+
+func (m Model) updateCreateMode(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+	switch keyMsg.String() {
+	case "esc":
+		m.creatingSession = false
+		m.createInput = ""
+		return m, nil
+	case "enter":
+		name := strings.TrimSpace(m.createInput)
+		if name == "" {
+			return m, nil
+		}
+
+		m.creatingSession = false
+		m.createRequested = true
+		m.createName = name
+		return m, tea.Quit
+	case "backspace", "ctrl+h":
+		m.createInput = removeLastRune(m.createInput)
+		return m, nil
+	case "ctrl+c":
+		m.quitting = true
+		return m, tea.Quit
+	}
+
+	if keyMsg.Type == tea.KeyRunes && len(keyMsg.Runes) > 0 {
+		m.createInput += string(keyMsg.Runes)
 	}
 
 	return m, nil
@@ -125,7 +177,7 @@ func (m Model) View() string {
 
 func (m Model) viewWithoutSidebar() string {
 	if len(m.sessions) == 0 {
-		return "Sessions\n\n(no sessions)\n\n[q] quit\n"
+		return "Sessions\n\n(no sessions)\n\n[n] new  [q] quit\n"
 	}
 
 	var builder strings.Builder
@@ -142,7 +194,7 @@ func (m Model) viewWithoutSidebar() string {
 		builder.WriteString("\n")
 	}
 
-	builder.WriteString("\n[j/k] move  [enter] connect  [q] quit\n")
+	builder.WriteString("\n[j/k] move  [n] new  [enter] connect  [q] quit\n")
 	return builder.String()
 }
 
@@ -164,6 +216,16 @@ func (m Model) SelectedSession() (Session, bool) {
 // IsQuitting returns whether the user requested quit from the switcher UI.
 func (m Model) IsQuitting() bool {
 	return m.quitting
+}
+
+// IsCreatingSession returns whether the UI is in create-session mode.
+func (m Model) IsCreatingSession() bool {
+	return m.creatingSession
+}
+
+// CreateRequest returns the requested session name and whether creation was requested.
+func (m Model) CreateRequest() (string, bool) {
+	return m.createName, m.createRequested
 }
 
 // Width returns the latest known terminal width.
@@ -226,10 +288,14 @@ func (m Model) sidebarLines(lineCount int) []string {
 		lines = append(lines, prefix+session.Name)
 	}
 
-	return withFooter(lines, lineCount, "[j/k] move [enter] connect [q] quit")
+	return withFooter(lines, lineCount, "[j/k] move [n] new [enter] connect [q] quit")
 }
 
 func (m Model) detailsLines(lineCount int) []string {
+	if m.creatingSession {
+		return withFooter(createSessionLines(m.createInput), lineCount, "")
+	}
+
 	lines := []string{"Details", ""}
 
 	if len(m.sessions) == 0 {
@@ -356,5 +422,26 @@ func detailsSuffixLines(detailsError string, detailsUpdated time.Time) []string 
 	}
 
 	lines = append(lines, "", "Enter to connect")
+	return lines
+}
+
+func removeLastRune(value string) string {
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return ""
+	}
+
+	return string(runes[:len(runes)-1])
+}
+
+func createSessionLines(input string) []string {
+	lines := []string{
+		"Create Session",
+		"",
+		"Name: " + input + "_",
+		"",
+		"[enter] create  [esc] cancel",
+	}
+
 	return lines
 }

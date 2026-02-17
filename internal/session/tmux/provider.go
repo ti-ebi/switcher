@@ -61,6 +61,26 @@ func (p Provider) List(ctx context.Context) ([]string, error) {
 	return parseSessionNames(output), nil
 }
 
+// Create creates a new detached tmux session.
+func (p Provider) Create(ctx context.Context, sessionName string) error {
+	name := strings.TrimSpace(sessionName)
+	if name == "" {
+		return fmt.Errorf("create tmux session: session name is empty")
+	}
+
+	output, err := p.runner(ctx, "tmux", "new-session", "-d", "-s", name)
+	if err != nil {
+		outputText := strings.TrimSpace(string(output))
+		if outputText != "" {
+			return fmt.Errorf("create tmux session: %w: %s", err, outputText)
+		}
+
+		return fmt.Errorf("create tmux session: %w", err)
+	}
+
+	return nil
+}
+
 // ListDetails returns metadata for all tmux sessions.
 func (p Provider) ListDetails(ctx context.Context) ([]SessionDetails, error) {
 	output, err := p.runner(

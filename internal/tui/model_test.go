@@ -110,10 +110,137 @@ func TestViewRendersSidebarWithSelection(t *testing.T) {
 	model := NewModel([]Session{{Name: "alpha"}, {Name: "beta"}})
 
 	output := model.View()
-	want := "Sessions\n\n> alpha\n  beta\n\n[j/k] move  [enter] connect  [q] quit\n"
+	want := "Sessions\n\n> alpha\n  beta\n\n[j/k] move  [n] new  [enter] connect  [q] quit\n"
 
 	if output != want {
 		t.Fatalf("view mismatch\nwant:\n%s\n\ngot:\n%s", want, output)
+	}
+}
+
+func TestUpdateStartsCreateModeWithN(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}, {Name: "beta"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	nextModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	if !nextModel.IsCreatingSession() {
+		t.Fatal("creating session = false, want true")
+	}
+}
+
+func TestUpdateBuildsAndSubmitsCreateSessionName(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	createModeModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	for _, key := range []rune{'d', 'e', 'v'} {
+		updated, _ = createModeModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+		createModeModel, ok = updated.(Model)
+		if !ok {
+			t.Fatalf("update returned %T, want Model", updated)
+		}
+	}
+
+	updated, _ = createModeModel.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	createModeModel, ok = updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = createModeModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	createModeModel, ok = updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = createModeModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	finalModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	sessionName, requested := finalModel.CreateRequest()
+	if !requested {
+		t.Fatal("requested = false, want true")
+	}
+
+	if sessionName != "dev" {
+		t.Fatalf("sessionName = %q, want %q", sessionName, "dev")
+	}
+}
+
+func TestUpdateCancelsCreateModeWithEsc(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	createModeModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = createModeModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	createModeModel, ok = updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = createModeModel.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	finalModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	if finalModel.IsCreatingSession() {
+		t.Fatal("creating session = true, want false")
+	}
+
+	if finalModel.IsQuitting() {
+		t.Fatal("quitting = true, want false")
+	}
+
+	_, requested := finalModel.CreateRequest()
+	if requested {
+		t.Fatal("requested = true, want false")
+	}
+}
+
+func TestViewShowsCreateSessionPromptInCreateMode(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	createModeModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	updated, _ = createModeModel.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	sizedModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	output := sizedModel.View()
+	if !strings.Contains(output, "Create Session") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "Create Session", output)
+	}
+
+	if !strings.Contains(output, "Name: _") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "Name: _", output)
 	}
 }
 

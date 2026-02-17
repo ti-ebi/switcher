@@ -43,6 +43,14 @@ func main() {
 			return
 		}
 
+		if sessionName, requested := finalModel.CreateRequest(); requested {
+			if err := provider.Create(ctx, sessionName); err != nil {
+				log.Printf("failed to create session %q: %v", sessionName, err)
+			}
+
+			continue
+		}
+
 		session, selected := finalModel.SelectedSession()
 		if !selected {
 			continue
