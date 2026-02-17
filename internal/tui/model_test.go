@@ -186,6 +186,7 @@ func TestUpdateStoresSessionDetailsAndViewRendersThem(t *testing.T) {
 				WindowCount:     4,
 				AttachedClients: 2,
 				CreatedAt:       time.Unix(1700000000, 0).UTC(),
+				Preview:         "build running...\nall green",
 			},
 		},
 		UpdatedAt: time.Unix(1700001200, 0).UTC(),
@@ -195,7 +196,7 @@ func TestUpdateStoresSessionDetailsAndViewRendersThem(t *testing.T) {
 		t.Fatalf("update returned %T, want Model", updated)
 	}
 
-	resized, _ := nextModel.Update(tea.WindowSizeMsg{Width: 70, Height: 10})
+	resized, _ := nextModel.Update(tea.WindowSizeMsg{Width: 70, Height: 14})
 	sizedModel, ok := resized.(Model)
 	if !ok {
 		t.Fatalf("update returned %T, want Model", resized)
@@ -208,6 +209,10 @@ func TestUpdateStoresSessionDetailsAndViewRendersThem(t *testing.T) {
 
 	if !strings.Contains(output, "Attached: 2") {
 		t.Fatalf("output must contain %q\noutput:\n%s", "Attached: 2", output)
+	}
+
+	if !strings.Contains(output, "build running...") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "build running...", output)
 	}
 
 	wantUpdatedLine := "Updated: " + time.Unix(1700001200, 0).Local().Format("15:04:05")

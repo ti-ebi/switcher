@@ -25,6 +25,7 @@ type SessionDetails struct {
 	WindowCount     int
 	AttachedClients int
 	CreatedAt       time.Time
+	Preview         string
 }
 
 // NewProvider creates a provider that runs real tmux commands.
@@ -87,6 +88,7 @@ func (p Provider) ListDetails(ctx context.Context) ([]SessionDetails, error) {
 		return nil, fmt.Errorf("parse tmux session details: %w", parseErr)
 	}
 
+	enrichSessionDetailsWithPreviews(ctx, p.runner, details)
 	return details, nil
 }
 
@@ -145,6 +147,45 @@ func parseSessionDetails(output []byte) ([]SessionDetails, error) {
 	}
 
 	return details, nil
+}
+
+func enrichSessionDetailsWithPreviews(ctx context.Context, runner commandRunner, details []SessionDetails) {
+	for index := range details {
+		preview, err := captureSessionPreview(ctx, runner, details[index].Name, 30)
+		if err != nil {
+			continue
+		}
+
+		details[index].Preview = preview
+	}
+}
+
+func captureSessionPreview(
+	ctx context.Context,
+	runner commandRunner,
+	sessionName string,
+	lines int,
+) (string, error) {
+	if lines <= 0 {
+		lines = 30
+	}
+
+	output, err := runner(
+		ctx,
+		"tmux",
+		"capture-pane",
+		"-p",
+		"-J",
+		"-t",
+		sessionName,
+		"-S",
+		fmt.Sprintf("-%d", lines),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimRight(string(output), "\n"), nil
 }
 
 func isNoServerError(output []byte) bool {

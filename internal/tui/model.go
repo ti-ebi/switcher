@@ -18,6 +18,7 @@ type SessionDetails struct {
 	WindowCount     int
 	AttachedClients int
 	CreatedAt       time.Time
+	Preview         string
 }
 
 // SessionDetailsUpdatedMsg refreshes right-pane details for sessions.
@@ -243,6 +244,8 @@ func (m Model) detailsLines(lineCount int) []string {
 		lines = append(lines, fmt.Sprintf("Windows: %d", detail.WindowCount))
 		lines = append(lines, fmt.Sprintf("Attached: %d", detail.AttachedClients))
 		lines = append(lines, "Created: "+detail.CreatedAt.Local().Format("2006-01-02 15:04:05"))
+		lines = append(lines, "", "Preview:")
+		lines = append(lines, previewLines(detail.Preview)...)
 	} else {
 		lines = append(lines, "Windows: -", "Attached: -", "Created: -")
 	}
@@ -305,4 +308,13 @@ func cloneSessionDetails(source map[string]SessionDetails) map[string]SessionDet
 	}
 
 	return cloned
+}
+
+func previewLines(preview string) []string {
+	trimmed := strings.TrimSpace(preview)
+	if trimmed == "" {
+		return []string{"(no preview)"}
+	}
+
+	return strings.Split(trimmed, "\n")
 }

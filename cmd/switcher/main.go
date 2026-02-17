@@ -102,6 +102,7 @@ func toTUISessionDetails(details []tmux.SessionDetails) map[string]tui.SessionDe
 			WindowCount:     detail.WindowCount,
 			AttachedClients: detail.AttachedClients,
 			CreatedAt:       detail.CreatedAt,
+			Preview:         detail.Preview,
 		}
 	}
 

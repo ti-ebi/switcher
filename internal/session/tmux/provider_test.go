@@ -120,3 +120,32 @@ func TestProviderListDetailsReturnsParseError(t *testing.T) {
 		t.Fatalf("error = %q, want to contain %q", err.Error(), "parse tmux session details")
 	}
 }
+
+func TestProviderListDetailsIncludesSessionPreview(t *testing.T) {
+	t.Parallel()
+
+	provider := NewProviderWithRunner(func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "list-sessions" && args[1] == "-F" {
+			return []byte("dev\t3\t1\t1700000000\n"), nil
+		}
+
+		if len(args) >= 6 && args[0] == "capture-pane" && args[4] == "dev" {
+			return []byte("hello from dev\nline two\n"), nil
+		}
+
+		return nil, errors.New("unexpected command arguments")
+	})
+
+	details, err := provider.ListDetails(context.Background())
+	if err != nil {
+		t.Fatalf("ListDetails returned error: %v", err)
+	}
+
+	if len(details) != 1 {
+		t.Fatalf("len(details) = %d, want 1", len(details))
+	}
+
+	if details[0].Preview != "hello from dev\nline two" {
+		t.Fatalf("details[0].Preview = %q, want %q", details[0].Preview, "hello from dev\nline two")
+	}
+}
