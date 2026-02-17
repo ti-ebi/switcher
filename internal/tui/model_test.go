@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -171,5 +172,46 @@ func TestViewRendersTwoPaneSidebarLayout(t *testing.T) {
 
 	if !strings.Contains(output, "Session: alpha") {
 		t.Fatalf("output must contain details for selected session\noutput:\n%s", output)
+	}
+}
+
+func TestUpdateStoresSessionDetailsAndViewRendersThem(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	updated, _ := model.Update(SessionDetailsUpdatedMsg{
+		Details: map[string]SessionDetails{
+			"alpha": {
+				WindowCount:     4,
+				AttachedClients: 2,
+				CreatedAt:       time.Unix(1700000000, 0).UTC(),
+			},
+		},
+		UpdatedAt: time.Unix(1700001200, 0).UTC(),
+	})
+	nextModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	resized, _ := nextModel.Update(tea.WindowSizeMsg{Width: 70, Height: 10})
+	sizedModel, ok := resized.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", resized)
+	}
+
+	output := sizedModel.View()
+	if !strings.Contains(output, "Windows: 4") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "Windows: 4", output)
+	}
+
+	if !strings.Contains(output, "Attached: 2") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "Attached: 2", output)
+	}
+
+	wantUpdatedLine := "Updated: " + time.Unix(1700001200, 0).Local().Format("15:04:05")
+	if !strings.Contains(output, wantUpdatedLine) {
+		t.Fatalf("output must contain %q\noutput:\n%s", wantUpdatedLine, output)
 	}
 }

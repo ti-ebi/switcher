@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -12,9 +13,26 @@ type Session struct {
 	Name string
 }
 
+// SessionDetails represents dynamic metadata shown in the right pane.
+type SessionDetails struct {
+	WindowCount     int
+	AttachedClients int
+	CreatedAt       time.Time
+}
+
+// SessionDetailsUpdatedMsg refreshes right-pane details for sessions.
+type SessionDetailsUpdatedMsg struct {
+	Details   map[string]SessionDetails
+	UpdatedAt time.Time
+	Err       error
+}
+
 // Model is the Bubble Tea state for the switcher sidebar.
 type Model struct {
 	sessions        []Session
+	sessionDetails  map[string]SessionDetails
+	detailsUpdated  time.Time
+	detailsError    string
 	cursor          int
 	width           int
 	height          int
@@ -27,7 +45,10 @@ type Model struct {
 func NewModel(sessions []Session) Model {
 	clonedSessions := append([]Session(nil), sessions...)
 
-	return Model{sessions: clonedSessions}
+	return Model{
+		sessions:       clonedSessions,
+		sessionDetails: map[string]SessionDetails{},
+	}
 }
 
 // Init starts without side effects.
@@ -37,6 +58,17 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles keyboard interactions for navigation and selection.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if detailsMsg, ok := msg.(SessionDetailsUpdatedMsg); ok {
+		m.sessionDetails = cloneSessionDetails(detailsMsg.Details)
+		m.detailsUpdated = detailsMsg.UpdatedAt
+		m.detailsError = ""
+		if detailsMsg.Err != nil {
+			m.detailsError = detailsMsg.Err.Error()
+		}
+
+		return m, nil
+	}
+
 	if windowSizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width = windowSizeMsg.Width
 		m.height = windowSizeMsg.Height
@@ -206,7 +238,24 @@ func (m Model) detailsLines(lineCount int) []string {
 
 	currentSession := m.sessions[m.cursor]
 	lines = append(lines, "Session: "+currentSession.Name, "")
-	lines = append(lines, "Enter to connect")
+
+	if detail, ok := m.sessionDetails[currentSession.Name]; ok {
+		lines = append(lines, fmt.Sprintf("Windows: %d", detail.WindowCount))
+		lines = append(lines, fmt.Sprintf("Attached: %d", detail.AttachedClients))
+		lines = append(lines, "Created: "+detail.CreatedAt.Local().Format("2006-01-02 15:04:05"))
+	} else {
+		lines = append(lines, "Windows: -", "Attached: -", "Created: -")
+	}
+
+	if m.detailsError != "" {
+		lines = append(lines, "Refresh error: "+m.detailsError)
+	}
+
+	if !m.detailsUpdated.IsZero() {
+		lines = append(lines, "Updated: "+m.detailsUpdated.Local().Format("15:04:05"))
+	}
+
+	lines = append(lines, "", "Enter to connect")
 
 	return withFooter(lines, lineCount, "")
 }
@@ -243,4 +292,17 @@ func fitLine(line string, width int) string {
 	}
 
 	return line + strings.Repeat(" ", width-len(runes))
+}
+
+func cloneSessionDetails(source map[string]SessionDetails) map[string]SessionDetails {
+	if len(source) == 0 {
+		return map[string]SessionDetails{}
+	}
+
+	cloned := make(map[string]SessionDetails, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+
+	return cloned
 }
