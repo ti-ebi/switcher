@@ -241,24 +241,28 @@ func (m Model) detailsLines(lineCount int) []string {
 	lines = append(lines, "Session: "+currentSession.Name, "")
 
 	if detail, ok := m.sessionDetails[currentSession.Name]; ok {
-		lines = append(lines, fmt.Sprintf("Windows: %d", detail.WindowCount))
-		lines = append(lines, fmt.Sprintf("Attached: %d", detail.AttachedClients))
-		lines = append(lines, "Created: "+detail.CreatedAt.Local().Format("2006-01-02 15:04:05"))
+		metadata := []string{
+			fmt.Sprintf("Windows: %d", detail.WindowCount),
+			fmt.Sprintf("Attached: %d", detail.AttachedClients),
+			"Created: " + detail.CreatedAt.Local().Format("2006-01-02 15:04:05"),
+		}
+
+		suffix := detailsSuffixLines(m.detailsError, m.detailsUpdated)
+		for availablePreviewLineCount(lines, metadata, suffix, lineCount) < 1 && len(metadata) > 0 {
+			metadata = metadata[:len(metadata)-1]
+		}
+
+		lines = append(lines, metadata...)
 		lines = append(lines, "", "Preview:")
-		lines = append(lines, previewLines(detail.Preview)...)
+		previewCapacity := availablePreviewLineCount(lines[:len(lines)-2], nil, suffix, lineCount)
+		lines = append(lines, newestPreviewLines(detail.Preview, previewCapacity)...)
+		lines = append(lines, suffix...)
+		return withFooter(lines, lineCount, "")
 	} else {
 		lines = append(lines, "Windows: -", "Attached: -", "Created: -")
 	}
 
-	if m.detailsError != "" {
-		lines = append(lines, "Refresh error: "+m.detailsError)
-	}
-
-	if !m.detailsUpdated.IsZero() {
-		lines = append(lines, "Updated: "+m.detailsUpdated.Local().Format("15:04:05"))
-	}
-
-	lines = append(lines, "", "Enter to connect")
+	lines = append(lines, detailsSuffixLines(m.detailsError, m.detailsUpdated)...)
 
 	return withFooter(lines, lineCount, "")
 }
@@ -317,4 +321,40 @@ func previewLines(preview string) []string {
 	}
 
 	return strings.Split(trimmed, "\n")
+}
+
+func newestPreviewLines(preview string, maxLines int) []string {
+	if maxLines <= 0 {
+		return []string{}
+	}
+
+	lines := previewLines(preview)
+	if len(lines) <= maxLines {
+		return lines
+	}
+
+	tail := append([]string(nil), lines[len(lines)-maxLines:]...)
+	if maxLines > 1 {
+		tail[0] = "..."
+	}
+
+	return tail
+}
+
+func availablePreviewLineCount(prefix, metadata, suffix []string, lineCount int) int {
+	return lineCount - (len(prefix) + len(metadata) + 2 + len(suffix))
+}
+
+func detailsSuffixLines(detailsError string, detailsUpdated time.Time) []string {
+	lines := make([]string, 0, 4)
+	if detailsError != "" {
+		lines = append(lines, "Refresh error: "+detailsError)
+	}
+
+	if !detailsUpdated.IsZero() {
+		lines = append(lines, "Updated: "+detailsUpdated.Local().Format("15:04:05"))
+	}
+
+	lines = append(lines, "", "Enter to connect")
+	return lines
 }

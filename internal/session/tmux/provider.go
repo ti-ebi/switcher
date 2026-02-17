@@ -180,6 +180,8 @@ func captureSessionPreview(
 		sessionName,
 		"-S",
 		fmt.Sprintf("-%d", lines),
+		"-E",
+		"-",
 	)
 	if err != nil {
 		return "", err

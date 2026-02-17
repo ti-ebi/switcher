@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -218,5 +219,47 @@ func TestUpdateStoresSessionDetailsAndViewRendersThem(t *testing.T) {
 	wantUpdatedLine := "Updated: " + time.Unix(1700001200, 0).Local().Format("15:04:05")
 	if !strings.Contains(output, wantUpdatedLine) {
 		t.Fatalf("output must contain %q\noutput:\n%s", wantUpdatedLine, output)
+	}
+}
+
+func TestViewPrefersLatestPreviewLinesWhenPreviewIsLong(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}})
+
+	previewLines := make([]string, 0, 20)
+	for index := 1; index <= 20; index++ {
+		previewLines = append(previewLines, fmt.Sprintf("preview-%02d", index))
+	}
+
+	updated, _ := model.Update(SessionDetailsUpdatedMsg{
+		Details: map[string]SessionDetails{
+			"alpha": {
+				WindowCount:     1,
+				AttachedClients: 0,
+				CreatedAt:       time.Unix(1700000000, 0).UTC(),
+				Preview:         strings.Join(previewLines, "\n"),
+			},
+		},
+		UpdatedAt: time.Unix(1700001200, 0).UTC(),
+	})
+	nextModel, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", updated)
+	}
+
+	resized, _ := nextModel.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	sizedModel, ok := resized.(Model)
+	if !ok {
+		t.Fatalf("update returned %T, want Model", resized)
+	}
+
+	output := sizedModel.View()
+	if !strings.Contains(output, "preview-20") {
+		t.Fatalf("output must contain %q\noutput:\n%s", "preview-20", output)
+	}
+
+	if strings.Contains(output, "preview-01") {
+		t.Fatalf("output must not contain %q when preview is truncated\noutput:\n%s", "preview-01", output)
 	}
 }

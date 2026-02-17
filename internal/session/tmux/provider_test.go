@@ -149,3 +149,36 @@ func TestProviderListDetailsIncludesSessionPreview(t *testing.T) {
 		t.Fatalf("details[0].Preview = %q, want %q", details[0].Preview, "hello from dev\nline two")
 	}
 }
+
+func TestProviderListDetailsUsesCapturePaneTailArguments(t *testing.T) {
+	t.Parallel()
+
+	callCount := 0
+	var captureArgs []string
+
+	provider := NewProviderWithRunner(func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		callCount++
+		if callCount == 1 {
+			return []byte("dev\t1\t0\t1700000000\n"), nil
+		}
+
+		captureArgs = append([]string(nil), args...)
+		return []byte("latest output\n"), nil
+	})
+
+	_, err := provider.ListDetails(context.Background())
+	if err != nil {
+		t.Fatalf("ListDetails returned error: %v", err)
+	}
+
+	wantArgs := []string{"capture-pane", "-p", "-J", "-t", "dev", "-S", "-30", "-E", "-"}
+	if len(captureArgs) != len(wantArgs) {
+		t.Fatalf("len(captureArgs) = %d, want %d", len(captureArgs), len(wantArgs))
+	}
+
+	for index := range wantArgs {
+		if captureArgs[index] != wantArgs[index] {
+			t.Fatalf("captureArgs[%d] = %q, want %q", index, captureArgs[index], wantArgs[index])
+		}
+	}
+}
