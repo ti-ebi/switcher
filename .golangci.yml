@@ -1,0 +1,67 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - cyclop
+    - errcheck
+    - errorlint
+    - funlen
+    - gocognit
+    - gocritic
+    - gofumpt
+    - goimports
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - noctx
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+    - whitespace
+
+linters-settings:
+  cyclop:
+    max-complexity: 12
+  funlen:
+    lines: 90
+    statements: 45
+  gocognit:
+    min-complexity: 20
+  gofumpt:
+    extra-rules: true
+    module-path: switcher
+  goimports:
+    local-prefixes: switcher
+  lll:
+    line-length: 120
+  revive:
+    confidence: 0.8
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: empty-block
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: receiver-naming
+      - name: redefines-builtin-id
+      - name: superfluous-else
+      - name: time-naming
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
