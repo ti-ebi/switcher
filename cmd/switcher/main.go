@@ -30,6 +30,8 @@ func main() {
 	}
 
 	provider := tmux.NewProvider()
+	persistence := tmux.NewPersistenceManager()
+	persistenceEnabled := initializePersistence(ctx, provider, persistence)
 
 	for {
 		finalModel, ok := runSwitcherProgram(ctx, provider)
@@ -37,7 +39,13 @@ func main() {
 			return
 		}
 
-		if processManagementRequests(ctx, provider, finalModel) {
+		if processManagementRequests(
+			ctx,
+			provider,
+			persistence,
+			persistenceEnabled,
+			finalModel,
+		) {
 			continue
 		}
 
@@ -68,10 +76,18 @@ func runSwitcherProgram(ctx context.Context, provider tmux.Provider) (tui.Model,
 	return finalModel, ok
 }
 
-func processManagementRequests(ctx context.Context, provider tmux.Provider, model tui.Model) bool {
+func processManagementRequests(
+	ctx context.Context,
+	provider tmux.Provider,
+	persistence tmux.PersistenceManager,
+	persistenceEnabled bool,
+	model tui.Model,
+) bool {
 	if sessionName, requested := model.CreateRequest(); requested {
 		if err := provider.Create(ctx, sessionName); err != nil {
 			log.Printf("failed to create session %q: %v", sessionName, err)
+		} else if persistenceEnabled {
+			savePersistenceSnapshot(ctx, persistence)
 		}
 
 		return true
@@ -85,6 +101,8 @@ func processManagementRequests(ctx context.Context, provider tmux.Provider, mode
 				toSessionName,
 				err,
 			)
+		} else if persistenceEnabled {
+			savePersistenceSnapshot(ctx, persistence)
 		}
 
 		return true
@@ -93,12 +111,54 @@ func processManagementRequests(ctx context.Context, provider tmux.Provider, mode
 	if sessionName, requested := model.DeleteRequest(); requested {
 		if err := provider.Delete(ctx, sessionName); err != nil {
 			log.Printf("failed to delete session %q: %v", sessionName, err)
+		} else if persistenceEnabled {
+			savePersistenceSnapshot(ctx, persistence)
 		}
 
 		return true
 	}
 
 	return false
+}
+
+func initializePersistence(
+	ctx context.Context,
+	provider tmux.Provider,
+	persistence tmux.PersistenceManager,
+) bool {
+	if err := persistence.Bootstrap(ctx); err != nil {
+		log.Printf("tmux persistence bootstrap skipped: %v", err)
+		return false
+	}
+
+	if err := restoreSessionsIfEmpty(ctx, provider, persistence); err != nil {
+		log.Printf("tmux persistence restore skipped: %v", err)
+	}
+
+	return true
+}
+
+func restoreSessionsIfEmpty(
+	ctx context.Context,
+	provider tmux.Provider,
+	persistence tmux.PersistenceManager,
+) error {
+	sessionNames, err := provider.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(sessionNames) > 0 {
+		return nil
+	}
+
+	return persistence.Restore(ctx)
+}
+
+func savePersistenceSnapshot(ctx context.Context, persistence tmux.PersistenceManager) {
+	if err := persistence.Save(ctx); err != nil {
+		log.Printf("failed to save tmux persistence snapshot: %v", err)
+	}
 }
 
 func attachSelectedSession(ctx context.Context, model tui.Model) bool {

@@ -15,6 +15,7 @@ A fast terminal session switcher built as a TUI.
 - Live preview of the latest pane output (tail-focused)
 - Session lifecycle operations from UI: create, rename, delete
 - Returns to switcher after tmux detach (`Ctrl+b`, then `d`)
+- Automatic tmux persistence bootstrap (TPM + resurrect + continuum)
 
 ## Preview
 
@@ -36,9 +37,12 @@ Sessions                         | Details
 
 - Go `1.25+`
 - `tmux` installed and available in `PATH`
+- `git` available in `PATH` (used on first run for plugin bootstrap)
 - A terminal with ANSI color support (recommended)
 
 If `tmux` is missing, `switcher` exits with installation hints for common platforms.
+
+On first run with persistence bootstrap, internet access is required to clone tmux plugins.
 
 ## Installation
 
@@ -111,6 +115,30 @@ After attach, pane/window split and other terminal workflow operations are done 
 3. Detach with `Ctrl+b`, then `d`
 4. You return to switcher automatically
 
+### Automatic tmux persistence (new)
+
+`switcher` can auto-bootstrap tmux persistence using:
+
+- `tmux-plugins/tpm`
+- `tmux-plugins/tmux-resurrect`
+- `tmux-plugins/tmux-continuum`
+
+Behavior:
+
+1. At startup, `switcher` ensures TPM exists (`~/.tmux/plugins/tpm`)
+2. It ensures required plugin directives exist in `~/.tmux.conf`
+3. It runs TPM install script
+4. If tmux has no active sessions, it runs resurrect restore automatically
+5. After create/rename/delete in UI, it runs resurrect save
+
+Config handling:
+
+- `switcher` manages a dedicated block in `~/.tmux.conf` between:
+  - `# >>> switcher tmux persistence >>>`
+  - `# <<< switcher tmux persistence <<<`
+- If your config already has equivalent directives, `switcher` does not append duplicates.
+- If bootstrap fails, `switcher` continues in normal session-switching mode.
+
 ## Development
 
 This project enforces TDD and strict quality gates.
@@ -141,6 +169,7 @@ The workflow builds macOS/Linux archives for `amd64` and `arm64`, then publishes
 - `cmd/switcher`: app entrypoint and runtime loop
 - `internal/tui`: Bubble Tea model/update/view and interaction modes
 - `internal/session/tmux`: tmux integration (list/details/attach/create/rename/delete)
+- `internal/session/tmux/persistence`: tmux persistence bootstrap and save/restore orchestration
 
 ## Roadmap
 
