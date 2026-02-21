@@ -442,6 +442,48 @@ func TestViewRendersAnsiStylesWhenColorEnabled(t *testing.T) {
 	}
 }
 
+func TestUpdateWrapsFromLastToFirstWithJ(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}, {Name: "beta"}, {Name: "gamma"}})
+
+	// j を2回押して最後へ
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	m, _ := updated.(Model)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	m, _ = updated.(Model)
+
+	if m.Cursor() != 2 {
+		t.Fatalf("cursor = %d, want 2", m.Cursor())
+	}
+
+	// 末尾でもう一度 j → 先頭に戻る
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	final, _ := updated.(Model)
+
+	if final.Cursor() != 0 {
+		t.Fatalf("cursor = %d, want 0 (wrap to top)", final.Cursor())
+	}
+}
+
+func TestUpdateWrapsFromFirstToLastWithK(t *testing.T) {
+	t.Parallel()
+
+	model := NewModel([]Session{{Name: "alpha"}, {Name: "beta"}, {Name: "gamma"}})
+
+	if model.Cursor() != 0 {
+		t.Fatalf("cursor = %d, want 0", model.Cursor())
+	}
+
+	// 先頭で k → 末尾に飛ぶ
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	final, _ := updated.(Model)
+
+	if final.Cursor() != 2 {
+		t.Fatalf("cursor = %d, want 2 (wrap to bottom)", final.Cursor())
+	}
+}
+
 func TestUpdateStoresWindowSize(t *testing.T) {
 	t.Parallel()
 

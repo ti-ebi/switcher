@@ -118,12 +118,12 @@ func (m Model) updateKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 func (m Model) updateBrowseMode(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 	switch keyMsg.String() {
 	case "j", "down":
-		if m.cursor < len(m.sessions)-1 {
-			m.cursor++
+		if len(m.sessions) > 0 {
+			m.cursor = (m.cursor + 1) % len(m.sessions)
 		}
 	case "k", "up":
-		if m.cursor > 0 {
-			m.cursor--
+		if len(m.sessions) > 0 {
+			m.cursor = (m.cursor - 1 + len(m.sessions)) % len(m.sessions)
 		}
 	case "enter":
 		if len(m.sessions) == 0 {
